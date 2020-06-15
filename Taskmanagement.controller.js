@@ -5,6 +5,7 @@ const readXlsxFile = require("read-excel-file/node");
 const mysql=require("mysql");
 const csv = require("fast-csv");
 const multer=require("multer");
+const fileupload=require('express-fileupload');
 
 exports.create = (req, res) => {
 
@@ -185,39 +186,8 @@ let csvStream = csv
   res.send("Success"); 
 };
 
-exports.Uploadexcelfiletodb=(req,res) =>{
-  
-  const fs = require('fs');
-const mysql = require('mysql');
 
-const multer = require('multer');
-const express = require('express');
-
-const readXlsxFile = require('read-excel-file/node');
-
-const app = express();
- 
-global.__basedir = __dirname;
- 
-const storage = multer.diskStorage({
-	destination: (req, file, cb) => {
-	   cb(null, __basedir + '/uploads/')
-	},
-	filename: (req, file, cb) => {
-	   cb(null, file.fieldname + "-" + Date.now() + "-" + file.originalname)
-	}
-});
-
-const upload = multer({storage: storage});
-
-app.post('/api/uploadfile', upload.single("uploadfile"), (req, res) =>{
-	importExcelData2MySQL(__basedir + '/uploads/' + req.file.filename);
-	res.json({
-				'msg': 'File uploaded/import successfully!', 'file': req.file
-			});
-});
-
-function importExcelData2MySQL(filePath){
+exports.importExcelData2MySQL=function(filePath){
 
 	readXlsxFile(filePath).then((rows) => {
 			 
@@ -239,46 +209,14 @@ function importExcelData2MySQL(filePath){
 				let query = 'INSERT INTO todo (cname,cdes,cstatus) VALUES ?';
 				connection.query(query, [rows], (error, response) => {
 				console.log(error || response);
-
-				
 				});
 			}
 		});
 	})
+
 }
-
-exports.Uploadtextfiletodb=(req,res)=>{
-  const fs = require('fs');
-const mysql = require('mysql');
  
-const multer = require('multer');
-const express = require('express');
-const csv = require('fast-csv');
-
- 
-const app = express();
- 
-global.__basedir = __dirname;
- 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-     cb(null, __basedir + '/uploads/')
-  },
-  filename: (req, file, cb) => {
-     cb(null, file.fieldname + "-" + Date.now() + "-" + file.originalname)
-  }
-});
-
-const upload = multer({storage: storage});
- 
-app.post('/taskmanagement/uploadfile', upload.single("uploadfile"), (req, res) =>{
-    importTextData2MySQL(__basedir + '/uploads/' + req.file.filename);
-  res.json({
-        'msg': 'File uploaded/import successfully!', 'file': req.file
-      });
-});
- 
-function importTextData2MySQL(filePath){
+exports.importTextData2MySQL=function(filePath){
     let stream = fs.createReadStream(filePath);
     let myData = [];
     let csvStream = csv
@@ -317,8 +255,74 @@ function importTextData2MySQL(filePath){
       });
       stream.pipe(csvStream);
     };
-}
-}
 
+    
+    exports.importExcelData2MySQLDB=function (filePath){
+    
+      readXlsxFile(filePath).then((rows) => {
+			 
+        console.log(rows);
+    
+        rows.shift();
+           
+        const connection = mysql.createConnection({
+          host: 'localhost',
+          user: 'root',
+          password: 'admin',
+          database: 'taskmanagement'
+        });
+       
+        connection.connect((error) => {
+          if (error) {
+            console.error(error);
+          } else {
+            let query = 'INSERT INTO todo (cname, cdes, cstatus) VALUES ?';
+            connection.query(query, [rows], (error, response) => {
+            console.log(error || response);
+            });
+          }
+        });
+      })
+    }
 
+    exports.importTextData2MySQLDB=function(filePath){
+      let stream = fs.createReadStream(filePath);
+      let myData = [];
+      let csvStream = csv
+        .parse()
+        .on("data", function (data) {
+          myData.push(data);
+        })
+        .on("end", function () {
+          myData.shift();
+          var item="$";
+          remove(myData,item);
+          function remove(myData, item) {
+              for (var i = myData.length; i--;) {
+                  if (myData[i] == item) {
+                      myData.splice(i, 1);
+                  }
+              }
+          }
+          const connection = mysql.createConnection({
+            host: "localhost",
+            user: "root",
+            password: "admin",
+            database: "taskmanagement",
+          });
+      
+          connection.connect((error) => {
+            if (error) {
+              console.error(error);
+            } else {
+              let query = "INSERT INTO todo (cname, cdes, cstatus) VALUES ?";
+              connection.query(query, [myData], (error, response) => {
+                console.log(error || response);
+              });
+            }
+          });
+        });
+        stream.pipe(csvStream);
+      };
+    
 
